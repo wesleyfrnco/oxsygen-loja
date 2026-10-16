@@ -291,7 +291,7 @@ const brl = n => (Number(n)||0).toLocaleString('pt-BR', {style:'currency', curre
 const tam = (u, w) => u.replace('tr:w-1100,h-1594,c-at_max,f-jpg,q-90', 'tr:w-' + w + ',h-' + Math.round(w*1.449) + ',c-at_max,f-auto,q-80');
 const qtdCor = c => c.tams.reduce((s, t) => s + t.q, 0);
 const qtdProd = p => p.cores.reduce((s, c) => s + qtdCor(c), 0);
-const fotosDe = p => (p.cores.find(c => c.fotos.length) || {fotos:[]}).fotos;
+const fotosDe = p => (p.cores.find(c => c.fotos.length) || p.fotosAlt || {fotos:[]}).fotos;
 function amostraHtml(hex){ return '<span class="amostra">' + hex.map(h => '<i style="background:'+h+'"></i>').join('') + '</span>'; }
 /* foto quebrada (a OXSY trocou ou removeu o arquivo): some com ela em vez de mostrar o ícone de erro */
 document.addEventListener('error', e => {
@@ -395,7 +395,11 @@ function telaProduto(p){
 function pintarProduto(p){
   const cor = p.cores.find(c => c.cod === selecao.cor);
   let fotos = cor.fotos, aviso = '';
-  if (!fotos.length) { const outra = p.cores.find(c => c.fotos.length); fotos = outra ? outra.fotos : []; if (outra) aviso = 'Fotos na cor ' + outra.nome + '. A peça selecionada é ' + cor.nome + '.'; }
+  if (!fotos.length) {
+    const outra = p.cores.find(c => c.fotos.length);
+    if (outra) { fotos = outra.fotos; aviso = 'Fotos na cor ' + outra.nome + '. A peça selecionada é ' + cor.nome + '.'; }
+    else if (p.fotosAlt) { fotos = p.fotosAlt.fotos; aviso = 'Foto na cor ' + p.fotosAlt.cor + '. A peça disponível é ' + cor.nome + '.'; }
+  }
   $('#galeria').innerHTML = fotos.map((f, i) => '<img src="' + tam(f, i ? 700 : 1100) + '" alt="' + esc(p.nome + ', ' + cor.nome + ', foto ' + (i + 1)) + '"' + (i > 1 ? ' loading="lazy"' : '') + '>').join('') +
     (aviso ? '<p class="aviso-foto">' + esc(aviso) + '</p>' : '');
   const t = cor.tams.find(x => x.t === selecao.tam);
