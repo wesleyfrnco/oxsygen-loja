@@ -479,6 +479,8 @@ function adicionar(){
   if (ex) { if (ex.qtd >= lim) { toast('Você já separou todas as peças disponíveis.'); return; } ex.qtd++; }
   else sacola.push({ ref: p.ref, cor: c.cod, tam: selecao.tam, qtd: 1 });
   salvar(); abrirSacola();
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push({ event: 'oxs_add_sacola', oxs_valor: p.preco, oxs_ref: p.ref, oxs_nome: p.nome, oxs_refs: [p.ref], oxs_itens: 1 });
 }
 function pintarSacola(){
   const n = sacola.reduce((s, i) => s + i.qtd, 0);
@@ -503,6 +505,9 @@ function finalizar(){
     return '• ' + i.qtd + 'x ' + p.nome + ' (' + c.nome + ', tam ' + i.tam + ') ref. ' + p.ref + ' - ' + brl(p.preco * i.qtd); });
   const txt = 'Olá! Quero fazer este pedido no site da Oxsygen:\n\n' + linhas.join('\n') + '\n\nSubtotal: ' + brl(total) +
     (nome.trim() ? '\nNome: ' + nome.trim() : '') + (cep.trim() ? '\nCEP: ' + cep.trim() : '\nCEP: (vou informar)');
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push({ event: 'oxs_finalizar_whatsapp', oxs_valor: Math.round(total * 100) / 100,
+    oxs_itens: sacola.reduce((s, i) => s + i.qtd, 0), oxs_refs: sacola.map(i => i.ref) });
   window.open('https://wa.me/' + WHATS + '?text=' + encodeURIComponent(txt), '_blank', 'noopener');
 }
 function abrirSacola(){ pintarSacola(); $('#sacola').classList.add('aberto'); $('#fundoSacola').classList.add('aberto'); $('#sacola').setAttribute('aria-hidden', 'false'); }
