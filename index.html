@@ -498,16 +498,40 @@ function pintarSacola(){
     '<div class="duo"><div><label for="sNome">Seu nome</label><input id="sNome" autocomplete="name"></div><div><label for="sCep">CEP</label><input id="sCep" inputmode="numeric" autocomplete="postal-code" placeholder="00000-000"></div></div>' +
     '<button class="cta add" data-acao="finalizar">Finalizar pelo WhatsApp</button>' : '';
 }
+/* código curto que vai na mensagem do WhatsApp e liga a venda ao clique no anúncio */
+const API_CHECKOUT = API.replace(/\/vitrine$/, '/checkout');
+function novoCodigo(){
+  const letras = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ', n = new Uint8Array(4);
+  crypto.getRandomValues(n);
+  return 'OX' + [...n].map(x => letras[x % letras.length]).join('');
+}
+function lerCookie(nome){ const m = document.cookie.match('(?:^|; )' + nome + '=([^;]*)'); return m ? decodeURIComponent(m[1]) : ''; }
+function fbcGuardado(){ try { return localStorage.getItem('oxsygen.fbc') || ''; } catch (e) { return ''; } }
+(function guardarFbclid(){
+  const id = new URLSearchParams(location.search).get('fbclid');
+  if (id) try { localStorage.setItem('oxsygen.fbc', 'fb.1.' + Date.now() + '.' + id); } catch (e) {}
+})();
 function finalizar(){
   const nome = ($('#sNome') || {}).value || '', cep = ($('#sCep') || {}).value || '';
   let total = 0;
   const linhas = sacola.map(i => { const p = produtos.find(x => x.ref === i.ref); const c = p.cores.find(x => x.cod === i.cor); total += p.preco * i.qtd;
     return '• ' + i.qtd + 'x ' + p.nome + ' (' + c.nome + ', tam ' + i.tam + ') ref. ' + p.ref + ' - ' + brl(p.preco * i.qtd); });
+  const codigo = novoCodigo(), eventId = 'ic-' + codigo + '-' + Date.now();
   const txt = 'Olá! Quero fazer este pedido no site da Oxsygen:\n\n' + linhas.join('\n') + '\n\nSubtotal: ' + brl(total) +
-    (nome.trim() ? '\nNome: ' + nome.trim() : '') + (cep.trim() ? '\nCEP: ' + cep.trim() : '\nCEP: (vou informar)');
+    (nome.trim() ? '\nNome: ' + nome.trim() : '') + (cep.trim() ? '\nCEP: ' + cep.trim() : '\nCEP: (vou informar)') +
+    '\nCódigo do pedido: ' + codigo;
+  const valor = Math.round(total * 100) / 100;
   window.dataLayer = window.dataLayer || [];
-  window.dataLayer.push({ event: 'oxs_finalizar_whatsapp', oxs_valor: Math.round(total * 100) / 100,
+  window.dataLayer.push({ event: 'oxs_finalizar_whatsapp', oxs_valor: valor, oxs_event_id: eventId, oxs_codigo: codigo,
     oxs_itens: sacola.reduce((s, i) => s + i.qtd, 0), oxs_refs: sacola.map(i => i.ref) });
+  // registra a finalização no servidor (API de Conversões da Meta); não segura a cliente se falhar
+  try {
+    fetch(API_CHECKOUT, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'text/plain' },   // text/plain evita o preflight de CORS
+
+      body: JSON.stringify({ codigo, eventId, valor, nome: nome.trim(), cep: cep.trim(), url: location.href,
+        fbp: lerCookie('_fbp'), fbc: lerCookie('_fbc') || fbcGuardado(),
+        itens: sacola.map(i => { const p = produtos.find(x => x.ref === i.ref); return { ref: i.ref, qtd: i.qtd, preco: p ? p.preco : 0 }; }) }) }).catch(() => {});
+  } catch (e) {}
   window.open('https://wa.me/' + WHATS + '?text=' + encodeURIComponent(txt), '_blank', 'noopener');
 }
 function abrirSacola(){ pintarSacola(); $('#sacola').classList.add('aberto'); $('#fundoSacola').classList.add('aberto'); $('#sacola').setAttribute('aria-hidden', 'false'); }
