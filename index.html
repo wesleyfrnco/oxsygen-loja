@@ -315,6 +315,13 @@ document.addEventListener('error', e => {
 function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('vis'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('vis'), 2600); }
 
 /* ---------- dados: catálogo + estoque ao vivo ---------- */
+const CORES = {
+  '001': ['Branco', ['#F4F2EE']], '003': ['Preto', ['#1F1D1C']], '170': ['Eclipse', ['#282B4F']], '189': ['Barollo', ['#5B2B36']],
+  '192': ['Coffee', ['#5A3E3B']], '193': ['Natural', ['#DECFC2']], '194': ['Verdinho', ['#B8C3B5']], '195': ['Azuri', ['#7FB3C2']],
+  '196': ['Grape', ['#680054']], 'V22': ['Verdinho/Natural', ['#B8C3B5', '#DECFC2']], 'V23': ['Eclipse/Natural', ['#282B4F', '#DECFC2']],
+  'V24': ['Coffee/Natural', ['#5A3E3B', '#DECFC2']], 'V25': ['Preto/Natural', ['#1F1D1C', '#DECFC2']]
+};
+const ORDEM_TAM = { PP:1, P:2, M:3, G:4, GG:5, XG:6, XGG:7, EG:8, U:9 };
 async function carregar(){
   const cat = await (await fetch('catalogo.json', {cache:'no-cache'})).json();
   produtos = cat.produtos;
@@ -324,7 +331,17 @@ async function carregar(){
       const v = vivo.produtos[p.ref];
       if (!v) { p.cores.forEach(c => c.tams.forEach(t => t.q = 0)); continue; }
       if (v.preco) p.preco = Math.round(v.preco * 100) / 100;
-      for (const c of p.cores) for (const t of c.tams) t.q = ((v.est[c.cod] || {})[t.t]) || 0;
+      // cor que chegou no estoque e ainda não está no catálogo entra sozinha (com as fotos de outra cor)
+      for (const cod of Object.keys(v.est)) {
+        if (!p.cores.some(c => c.cod === cod) && CORES[cod]) p.cores.push({ cod, nome: CORES[cod][0], hex: CORES[cod][1], fotos: [], tams: [] });
+      }
+      for (const c of p.cores) {
+        const est = v.est[c.cod] || {};
+        // tamanho novo no estoque também aparece
+        Object.keys(est).forEach(t => { if (!c.tams.some(x => x.t === t)) c.tams.push({ t, q: 0 }); });
+        c.tams.sort((x, y) => (ORDEM_TAM[x.t] || 50) - (ORDEM_TAM[y.t] || 50));
+        for (const t of c.tams) t.q = est[t.t] || 0;
+      }
     }
   } catch(e) { /* sem conexão com o estoque: usa o retrato do catálogo */ }
   produtos = produtos.filter(p => qtdProd(p) > 0);
