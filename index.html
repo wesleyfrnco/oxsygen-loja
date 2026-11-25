@@ -119,6 +119,26 @@ button{font:inherit;color:inherit;cursor:pointer}
 .card .selo{position:absolute;left:10px;top:10px;background:var(--papel);font-size:12px;border-radius:999px;padding:3px 10px;z-index:1}
 .card h3{font-weight:400;font-size:var(--t-s);line-height:1.35;margin:12px 0 2px}
 .card .preco{font-size:var(--t-s);color:var(--suave)}
+.card .preco s,.info .valor-black s,.item small s{color:var(--suave);font-weight:300;text-decoration-thickness:1px}
+.card .preco-black{color:var(--argila-escura);font-weight:500;margin-left:4px}
+.card .selo-black{left:auto;right:10px;background:var(--grafite);color:#F5EFE9;letter-spacing:.03em}
+.etiqueta-black{display:table;margin-top:14px;background:var(--grafite);color:#F5EFE9;font-size:12px;letter-spacing:.04em;border-radius:999px;padding:4px 12px}
+.info .valor-black{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-top:10px}
+.info .valor-black s{font-size:var(--t-m)}
+.info .valor-black span{color:var(--argila-escura)}
+.valor-pix{margin:0 0 6px;font-size:var(--t-s);color:var(--suave)}
+.valor-pix b{color:var(--grafite);font-weight:500}
+.faixa-black{background:var(--grafite);color:#F5EFE9}
+.faixa-black h2{color:#F5EFE9}
+.faixa-black .secao-topo a{color:#F5EFE9}
+.faixa-black .black-sub{margin:6px 0 0;font-size:var(--t-s);color:#D9C8BC}
+.faixa-black .card h3{color:#F5EFE9}
+.faixa-black .card .preco,.faixa-black .card .preco s{color:#CDBCB0}
+.faixa-black .card .preco-black{color:#E7B39A}
+.faixa-black .card .selo-black{background:#E7B39A;color:var(--grafite)}
+.menu .menu-black{color:var(--argila-escura);font-weight:500}
+.linha-pix{display:flex;justify-content:space-between;font-size:var(--t-s);color:var(--argila-escura);margin-top:4px}
+.aviso a{color:inherit}
 .amostras{display:flex;gap:5px;margin-top:8px}
 .amostra{width:14px;height:14px;border-radius:50%;border:1px solid rgba(43,37,35,.18);overflow:hidden;display:flex}
 .amostra i{flex:1}
@@ -346,7 +366,48 @@ async function carregar(){
   } catch(e) { /* sem conexão com o estoque: usa o retrato do catálogo */ }
   produtos = produtos.filter(p => qtdProd(p) > 0);
   produtos.sort((a, b) => qtdProd(b) - qtdProd(a));
+  aplicarBlack();
   limparSacola();
+}
+
+/* ---------- Black selection: 15% nas peças da lista + 5% extra no Pix (20% sobre o preço cheio) ---------- */
+const BLACK = {
+  inicio: Date.parse('2026-11-26T00:00:00-03:00'),
+  fim:    Date.parse('2026-11-28T23:59:59-03:00'),
+  desconto: 0.15, pix: 0.20,
+  refs: ['F1003','F2001','F1002','F2000','F2014','F3004','F2019','F2017','F2004','F2005','F1007','F2015','F1010','F1009']
+};
+const previaBlack = new URLSearchParams(location.search).has('previa-black');
+function blackAtiva(){ const t = Date.now(); return previaBlack || (t >= BLACK.inicio && t <= BLACK.fim); }
+const r2 = n => Math.round(n * 100) / 100;
+function aplicarBlack(){
+  const ativa = blackAtiva();
+  for (const p of produtos) {
+    if (ativa && BLACK.refs.includes(p.ref)) {
+      p.black = true; p.precoCheio = p.preco;
+      p.preco = r2(p.precoCheio * (1 - BLACK.desconto));
+      p.precoPix = r2(p.precoCheio * (1 - BLACK.pix));
+    }
+  }
+  document.body.classList.toggle('em-black', ativa);
+  if (ativa) {
+    const aviso = $('.aviso');
+    if (aviso) aviso.innerHTML = '<a href="#/black">Black selection: 15% OFF + 5% extra no Pix em peças selecionadas, até 28/11</a>';
+    if (!$('#menu a[href="#/black"]')) $('#menu').insertAdjacentHTML('afterbegin', '<a href="#/black" class="menu-black">Black</a>');
+  }
+  // recarrega sozinha na virada (começo ou fim da promoção) se a página ficar aberta
+  if (!previaBlack) {
+    const agora = Date.now(), proximo = [BLACK.inicio, BLACK.fim + 1000].find(t => t > agora);
+    if (proximo && proximo - agora < 864e5) setTimeout(() => location.reload(), proximo - agora + 2000);
+  }
+}
+function precoCard(p){
+  return p.black
+    ? '<span class="preco"><s>' + brl(p.precoCheio) + '</s> <b class="preco-black">' + brl(p.preco) + '</b></span>'
+    : '<span class="preco">' + brl(p.preco) + '</span>';
+}
+function totalPix(){
+  return sacola.reduce((s, i) => { const p = produtos.find(x => x.ref === i.ref); return s + (p ? (p.precoPix || p.preco) * i.qtd : 0); }, 0);
 }
 
 /* ---------- telas ---------- */
@@ -355,10 +416,10 @@ function card(p){
   const cores = p.cores.filter(c => qtdCor(c) > 0);
   const poucas = qtdProd(p) === 1;
   return '<a class="card" href="#/p/' + p.slug + '">' +
-    '<div class="foto">' + (poucas ? '<span class="selo">Última peça</span>' : '') +
+    '<div class="foto">' + (poucas ? '<span class="selo">Última peça</span>' : '') + (p.black ? '<span class="selo selo-black">Black -15%</span>' : '') +
       (f[0] ? '<img loading="lazy" src="' + tam(f[0], 600) + '" alt="' + esc(p.nome) + '">' : '') +
       (f[1] ? '<img loading="lazy" src="' + tam(f[1], 600) + '" alt="" aria-hidden="true">' : '') + '</div>' +
-    '<h3>' + esc(p.nome) + '</h3><span class="preco">' + brl(p.preco) + '</span>' +
+    '<h3>' + esc(p.nome) + '</h3>' + precoCard(p) +
     '<div class="amostras" aria-label="' + cores.length + ' cores">' + cores.map(c => amostraHtml(c.hex)).join('') + '</div></a>';
 }
 
@@ -374,11 +435,22 @@ function telaHome(){
         '<div class="circulo a">' + (fa ? '<img src="' + tam(fa, 700) + '" alt="">' : '') + '</div>' +
         '<div class="circulo b">' + (fb ? '<img src="' + tam(fb, 700) + '" alt="">' : '') + '</div></div>' +
     '</div></section>' +
+    telaBlackHome() +
     telaColecoes() +
     '<section class="secao" aria-labelledby="t-disp"><div class="wrap">' +
       '<div class="secao-topo"><h2 id="t-disp">Disponíveis agora</h2><a href="#/pecas">Ver todas</a></div>' +
       '<div class="grade">' + produtos.slice(0, 8).map(card).join('') + '</div></div></section>' +
     telaComoComprar(true);
+}
+
+function telaBlackHome(){
+  const lista = produtos.filter(p => p.black);
+  if (!lista.length) return '';
+  return '<section class="secao faixa-black" aria-labelledby="t-black"><div class="wrap">' +
+    '<div class="secao-topo"><div><h2 id="t-black">Black selection</h2>' +
+    '<p class="black-sub">15% OFF + 5% extra no Pix. Até 28 de novembro ou enquanto durarem os estoques.</p></div>' +
+    '<a href="#/black">Ver todas</a></div>' +
+    '<div class="grade">' + lista.slice(0, 8).map(card).join('') + '</div></div></section>';
 }
 
 function telaColecoes(){
@@ -436,7 +508,11 @@ function pintarProduto(p){
   $('#info').innerHTML =
     (p.colecao ? '<a class="colecao-link" href="#/colecao/' + p.colecao.toLowerCase() + '">Coleção ' + p.colecao + '</a>' : '') +
     '<h1>' + esc(p.nome) + '</h1><span class="ref">Ref. ' + p.ref + '</span>' +
-    '<div class="valor">' + brl(p.preco) + '</div>' +
+    (p.black
+      ? '<span class="etiqueta-black">Black selection · até 28/11</span>' +
+        '<div class="valor valor-black"><s>' + brl(p.precoCheio) + '</s><span>' + brl(p.preco) + '</span></div>' +
+        '<p class="valor-pix"><b>' + brl(p.precoPix) + '</b> no Pix (20% OFF)</p>'
+      : '<div class="valor">' + brl(p.preco) + '</div>') +
     (p.tagline ? '<p class="tagline">' + esc(p.tagline) + '</p>' : '') +
     '<div class="rotulo">Cor <span>' + esc(cor.nome) + '</span></div>' +
     '<div class="cores">' + p.cores.map(c => '<button class="cor-btn' + (qtdCor(c) ? '' : ' esgotada') + '" data-cor="' + c.cod + '" aria-pressed="' + (c.cod === selecao.cor) + '" aria-label="' + esc(c.nome) + (qtdCor(c) ? '' : ', esgotada') + '"' + (qtdCor(c) ? '' : ' disabled') + '><span>' + c.hex.map(h => '<i style="background:' + h + '"></i>').join('') + '</span></button>').join('') + '</div>' +
@@ -474,6 +550,9 @@ function rota(){
   else if (a === 'pecas') html = telaLista('Todas as peças', produtos, rota.filtro || 'Tudo');
   else if (a === 'tipo') { const t = TIPOS[b]; html = telaLista(t || 'Peças', produtos.filter(p => p.tipo === t)); titulo = (t || 'Peças') + ' · Oxsygen'; }
   else if (a === 'colecao') { const c = Object.keys(COLECOES).find(k => k.toLowerCase() === b); html = (c ? '<div class="wrap"><p class="trilha">' + esc(COLECOES[c]) + '</p></div>' : '') + telaLista('Coleção ' + (c || ''), produtos.filter(p => p.colecao === c)); titulo = 'Coleção ' + c + ' · Oxsygen'; }
+  else if (a === 'black') { const lista = produtos.filter(p => p.black);
+    html = '<div class="wrap"><p class="trilha">' + (lista.length ? '15% OFF + 5% extra no Pix. Até 28 de novembro ou enquanto durarem os estoques.' : 'A Black selection terminou. Veja as peças disponíveis.') + '</p></div>' +
+      telaLista('Black selection', lista.length ? lista : produtos); titulo = 'Black selection · Oxsygen'; }
   else if (a === 'colecoes') { html = telaColecoes(); titulo = 'Coleções · Oxsygen'; }
   else if (a === 'como-comprar') html = telaComoComprar();
   else if (a === 'trocas') html = telaTrocas();
@@ -505,12 +584,14 @@ function pintarSacola(){
   if (!produtos.length) return;
   const linhas = sacola.map((i, k) => { const p = produtos.find(x => x.ref === i.ref); if (!p) return ''; const c = p.cores.find(x => x.cod === i.cor); const f = (c.fotos[0] || fotosDe(p)[0]);
     return '<div class="item">' + (f ? '<img src="' + tam(f, 200) + '" alt="">' : '<span></span>') +
-      '<div><b>' + esc(p.nome) + '</b><small>' + esc(c.nome) + ', tamanho ' + i.tam + '</small><small>' + brl(p.preco) + '</small>' +
+      '<div><b>' + esc(p.nome) + '</b><small>' + esc(c.nome) + ', tamanho ' + i.tam + '</small><small>' + (p.black ? '<s>' + brl(p.precoCheio) + '</s> ' : '') + brl(p.preco) + '</small>' +
       '<div class="qtd"><button data-menos="' + k + '" aria-label="Diminuir">−</button><span>' + i.qtd + '</span><button data-mais="' + k + '" aria-label="Aumentar">+</button></div></div>' +
       '<button class="tirar" data-tirar="' + k + '">Remover</button></div>'; }).join('');
   $('#itens').innerHTML = n ? linhas : '<p class="vazio">Sua sacola está vazia.<br><a href="#/pecas" data-acao="fecharSacola">Ver as peças</a></p>';
   const total = sacola.reduce((s, i) => { const p = produtos.find(x => x.ref === i.ref); return s + (p ? p.preco * i.qtd : 0); }, 0);
+  const pix = totalPix();
   $('#rodapeSacola').innerHTML = n ? '<div class="linha-total"><span>Subtotal</span><span>' + brl(total) + '</span></div>' +
+    (pix < total - 0.004 ? '<div class="linha-pix"><span>No Pix (Black)</span><span>' + brl(pix) + '</span></div>' : '') +
     '<p>O frete é calculado pelo seu CEP no WhatsApp.</p>' +
     '<div class="duo"><div><label for="sNome">Seu nome</label><input id="sNome" autocomplete="name"></div><div><label for="sCep">CEP</label><input id="sCep" inputmode="numeric" autocomplete="postal-code" placeholder="00000-000"></div></div>' +
     '<button class="cta add" data-acao="finalizar">Finalizar pelo WhatsApp</button>' : '';
@@ -532,9 +613,10 @@ function finalizar(){
   const nome = ($('#sNome') || {}).value || '', cep = ($('#sCep') || {}).value || '';
   let total = 0;
   const linhas = sacola.map(i => { const p = produtos.find(x => x.ref === i.ref); const c = p.cores.find(x => x.cod === i.cor); total += p.preco * i.qtd;
-    return '• ' + i.qtd + 'x ' + p.nome + ' (' + c.nome + ', tam ' + i.tam + ') ref. ' + p.ref + ' - ' + brl(p.preco * i.qtd); });
+    return '• ' + i.qtd + 'x ' + p.nome + ' (' + c.nome + ', tam ' + i.tam + ') ref. ' + p.ref + ' - ' + brl(p.preco * i.qtd) + (p.black ? ' (Black)' : ''); });
+  const pix = r2(totalPix());
   const codigo = novoCodigo(), eventId = 'ic-' + codigo + '-' + Date.now();
-  const txt = 'Olá! Quero fazer este pedido no site da Oxsygen:\n\n' + linhas.join('\n') + '\n\nSubtotal: ' + brl(total) +
+  const txt = 'Olá! Quero fazer este pedido no site da Oxsygen:\n\n' + linhas.join('\n') + '\n\nSubtotal: ' + brl(total) + (pix < total - 0.004 ? '\nNo Pix (Black selection): ' + brl(pix) : '') +
     (nome.trim() ? '\nNome: ' + nome.trim() : '') + (cep.trim() ? '\nCEP: ' + cep.trim() : '\nCEP: (vou informar)') +
     '\nCódigo do pedido: ' + codigo;
   const valor = Math.round(total * 100) / 100;
